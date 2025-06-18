@@ -1,6 +1,6 @@
 MIT License
 
-https://github.com/ktsu-dev/AppData
+https://github.com/ktsu-dev/PersistenceProvider
 
 Copyright (c) 2023-2025 ktsu-dev
 
