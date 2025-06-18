@@ -1496,17 +1496,14 @@ function Invoke-DotNetPack {
     }
 
     try {
-        # Prepare PackageReleaseNotes property if latest changelog exists
+        # Prepare PackageReleaseNotesFile property if latest changelog exists
         $releaseNotesProperty = ""
         if (Test-Path $LatestChangelogFile) {
-            $releaseNotesContent = Get-Content $LatestChangelogFile -Raw -ErrorAction SilentlyContinue
-            if (-not [string]::IsNullOrWhiteSpace($releaseNotesContent)) {
-                # Escape quotes, special characters, and newlines for MSBuild property
-                # Replace newlines with literal \n to prevent command line parsing issues
-                $escapedContent = $releaseNotesContent.Replace('"', '\"').Replace('`', '``').Replace("`r`n", '\n').Replace("`n", '\n')
-                $releaseNotesProperty = "-p:PackageReleaseNotes=`"$escapedContent`""
-                Write-Information "Using PackageReleaseNotes from $LatestChangelogFile ($($releaseNotesContent.Length) characters)" -Tags "Invoke-DotNetPack"
-            }
+            # Use PackageReleaseNotesFile to reference the file path instead of inline content
+            # This avoids command-line parsing issues with special characters like semicolons
+            $absolutePath = (Resolve-Path $LatestChangelogFile).Path
+            $releaseNotesProperty = "-p:PackageReleaseNotesFile=`"$absolutePath`""
+            Write-Information "Using PackageReleaseNotesFile from $LatestChangelogFile" -Tags "Invoke-DotNetPack"
         }
 
         # Build either a specific project or all projects
