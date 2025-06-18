@@ -1501,8 +1501,9 @@ function Invoke-DotNetPack {
         if (Test-Path $LatestChangelogFile) {
             $releaseNotesContent = Get-Content $LatestChangelogFile -Raw -ErrorAction SilentlyContinue
             if (-not [string]::IsNullOrWhiteSpace($releaseNotesContent)) {
-                # Escape quotes and special characters for MSBuild property
-                $escapedContent = $releaseNotesContent.Replace('"', '\"').Replace('`', '``')
+                # Escape quotes, special characters, and newlines for MSBuild property
+                # Replace newlines with literal \n to prevent command line parsing issues
+                $escapedContent = $releaseNotesContent.Replace('"', '\"').Replace('`', '``').Replace("`r`n", '\n').Replace("`n", '\n')
                 $releaseNotesProperty = "-p:PackageReleaseNotes=`"$escapedContent`""
                 Write-Information "Using PackageReleaseNotes from $LatestChangelogFile ($($releaseNotesContent.Length) characters)" -Tags "Invoke-DotNetPack"
             }

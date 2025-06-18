@@ -4,30 +4,48 @@
 
 namespace ktsu.PersistenceProvider.Test;
 
+using ktsu.FileSystemProvider;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ktsu.SerializationProvider;
 
 [TestClass]
-public sealed class MemoryPersistenceProviderTests
+public sealed class AppDataPersistenceProviderTests
 {
-	private MemoryPersistenceProvider<string>? _provider;
+	private AppDataPersistenceProvider<string>? _provider;
+	private FileSystemProvider? _fileSystemProvider;
 	private ISerializationProvider? _serializationProvider;
+	private string _tempAppName = string.Empty;
 
 	[TestInitialize]
 	public void Initialize()
 	{
-		// You would typically use a mock or a real implementation here
-		// For this example, we'll need to assume a concrete implementation exists
+		_fileSystemProvider = new FileSystemProvider();
 		_serializationProvider = new MockSerializationProvider();
-		_provider = new MemoryPersistenceProvider<string>(_serializationProvider);
+		_tempAppName = $"TestApp_{Guid.NewGuid():N}";
+		_provider = new AppDataPersistenceProvider<string>(_fileSystemProvider, _serializationProvider, _tempAppName);
+	}
+
+	[TestCleanup]
+	public void Cleanup()
+	{
+		// Clean up the temporary directory using the file system provider
+		if (_fileSystemProvider is not null)
+		{
+			// Environment.GetFolderPath is a system API, not file I/O
+			string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+			string testPath = _fileSystemProvider.Current.Path.Combine(appDataPath, _tempAppName);
+			if (_fileSystemProvider.Current.Directory.Exists(testPath))
+			{
+				_fileSystemProvider.Current.Directory.Delete(testPath, true);
+			}
+		}
 	}
 
 	[TestMethod]
 	public async Task StoreAsync_ShouldStoreObject()
 	{
 		// Arrange
-		TestModel testObject = new()
-		{ Id = 1, Name = "Test" };
+		TestModel testObject = new() { Id = 1, Name = "Test" };
 		const string key = "test-key";
 
 		// Act
@@ -42,8 +60,7 @@ public sealed class MemoryPersistenceProviderTests
 	public async Task RetrieveAsync_ShouldReturnStoredObject()
 	{
 		// Arrange
-		TestModel testObject = new()
-		{ Id = 1, Name = "Test" };
+		TestModel testObject = new() { Id = 1, Name = "Test" };
 		const string key = "test-key";
 
 		// Act
@@ -88,8 +105,7 @@ public sealed class MemoryPersistenceProviderTests
 	public async Task RemoveAsync_ShouldRemoveExistingObject()
 	{
 		// Arrange
-		TestModel testObject = new()
-		{ Id = 1, Name = "Test" };
+		TestModel testObject = new() { Id = 1, Name = "Test" };
 		const string key = "test-key";
 
 		// Act
@@ -103,13 +119,30 @@ public sealed class MemoryPersistenceProviderTests
 	}
 
 	[TestMethod]
+	public async Task GetAllKeysAsync_ShouldReturnAllStoredKeys()
+	{
+		// Arrange
+		TestModel testObject1 = new() { Id = 1, Name = "Test1" };
+		TestModel testObject2 = new() { Id = 2, Name = "Test2" };
+
+		// Act
+		await _provider!.StoreAsync("key1", testObject1).ConfigureAwait(false);
+		await _provider.StoreAsync("key2", testObject2).ConfigureAwait(false);
+		IEnumerable<string> keys = await _provider.GetAllKeysAsync().ConfigureAwait(false);
+
+		// Assert
+		List<string> keysList = [.. keys];
+		Assert.AreEqual(2, keysList.Count);
+		Assert.IsTrue(keysList.Contains("key1"));
+		Assert.IsTrue(keysList.Contains("key2"));
+	}
+
+	[TestMethod]
 	public async Task ClearAsync_ShouldRemoveAllObjects()
 	{
 		// Arrange
-		TestModel testObject1 = new()
-		{ Id = 1, Name = "Test1" };
-		TestModel testObject2 = new()
-		{ Id = 2, Name = "Test2" };
+		TestModel testObject1 = new() { Id = 1, Name = "Test1" };
+		TestModel testObject2 = new() { Id = 2, Name = "Test2" };
 
 		// Act
 		await _provider!.StoreAsync("key1", testObject1).ConfigureAwait(false);
@@ -124,17 +157,17 @@ public sealed class MemoryPersistenceProviderTests
 	}
 
 	[TestMethod]
-	public void ProviderName_ShouldReturnMemory()
+	public void ProviderName_ShouldReturnAppData()
 	{
 		// Act & Assert
-		Assert.AreEqual("Memory", _provider!.ProviderName);
+		Assert.AreEqual("AppData", _provider!.ProviderName);
 	}
 
 	[TestMethod]
-	public void IsPersistent_ShouldReturnFalse()
+	public void IsPersistent_ShouldReturnTrue()
 	{
 		// Act & Assert
-		Assert.IsFalse(_provider!.IsPersistent);
+		Assert.IsTrue(_provider!.IsPersistent);
 	}
 
 	private sealed class TestModel

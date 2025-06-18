@@ -1,6 +1,6 @@
-# PersistenceProvider
+# ktsu.PersistenceProvider
 
-A generic persistence provider library that supports multiple storage backends for .NET applications. This library is designed to complement and integrate with SerializationProvider and FileSystemProvider libraries, providing a clean abstraction layer for data persistence with dependency injection support.
+A generic persistence provider library that supports multiple storage backends for .NET applications. This library is designed to complement and integrate with ktsu.SerializationProvider and ktsu.FileSystemProvider libraries, providing a clean abstraction layer for data persistence with dependency injection support.
 
 ## Features
 
@@ -8,18 +8,15 @@ A generic persistence provider library that supports multiple storage backends f
 - **Dependency Injection Ready**: Designed for use with DI containers
 - **Async/Await Support**: All operations are asynchronous
 - **Generic Key Support**: Use any type as a key (string, Guid, int, etc.)
-- **Serialization Integration**: Works with any ISerializationProvider implementation
-- **File System Integration**: Leverages IFileSystemProvider for file operations
+- **Serialization Integration**: Works with any ktsu.SerializationProvider implementation
+- **File System Integration**: Leverages ktsu.FileSystemProvider for file operations
 - **Thread-Safe**: Concurrent operations are handled safely
 
 ## Installation
 
 ```bash
-# Install from NuGet (when published)
+# Install from NuGet
 dotnet add package ktsu.PersistenceProvider
-
-# Or add project reference
-dotnet add reference path/to/PersistenceProvider.csproj
 ```
 
 ## Quick Start
@@ -28,10 +25,10 @@ dotnet add reference path/to/PersistenceProvider.csproj
 
 ```csharp
 using ktsu.PersistenceProvider;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 // Create a serialization provider (implementation not shown)
-ISerializationProvider serializer = new JsonSerializationProvider();
+ISerializationProvider serializer = new JsonSerializationProvider(); // or any other implementation
 
 // Create a memory-based persistence provider
 IPersistenceProvider<string> provider = new MemoryPersistenceProvider<string>(serializer);
@@ -58,10 +55,10 @@ await provider.RemoveAsync("user:123");
 ```csharp
 using ktsu.PersistenceProvider;
 using ktsu.FileSystemProvider;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 // Create providers
-IFileSystemProvider fileSystem = new FileSystemProvider();
+IFileSystemProvider fileSystem = new FileSystemProvider(); // or any other implementation
 ISerializationProvider serializer = new JsonSerializationProvider();
 
 // Create file system-based persistence provider
@@ -79,16 +76,25 @@ var config = await provider.RetrieveAsync<AppConfig>("config");
 
 ```csharp
 using ktsu.PersistenceProvider;
-using ktsu.AppData.Interfaces;
-using ktsu.Semantics;
+using ktsu.FileSystemProvider;
+using ktsu.SerializationProvider;
 
-// Create AppData repository (implementation depends on your setup)
-IAppDataRepository<PersistenceItem> repository = CreateAppDataRepository();
+// Create providers
+IFileSystemProvider fileSystem = new FileSystemProvider();
+ISerializationProvider serializer = new JsonSerializationProvider();
 
-// Create AppData-based persistence provider
+// Create AppData-based persistence provider (stores in %APPDATA%\MyApp)
 IPersistenceProvider<string> provider = new AppDataPersistenceProvider<string>(
-    repository, 
-    "MyApp".As<RelativeDirectoryPath>());
+    fileSystem, 
+    serializer, 
+    "MyApp");
+
+// With optional subdirectory (stores in %APPDATA%\MyApp\Settings)
+IPersistenceProvider<string> providerWithSubdir = new AppDataPersistenceProvider<string>(
+    fileSystem, 
+    serializer, 
+    "MyApp", 
+    "Settings");
 
 // Store application data
 await provider.StoreAsync("preferences", new UserPreferences 
@@ -103,7 +109,7 @@ await provider.StoreAsync("preferences", new UserPreferences
 ```csharp
 using ktsu.PersistenceProvider;
 using ktsu.FileSystemProvider;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 // Create temporary storage provider
 IPersistenceProvider<Guid> provider = new TempPersistenceProvider<Guid>(
@@ -144,6 +150,13 @@ services.AddSingleton<IPersistenceProvider<Guid>>(provider =>
         provider.GetRequiredService<ISerializationProvider>(),
         @"C:\MyApp\Data"));
 
+// Register AppData provider
+services.AddSingleton<IPersistenceProvider<string>>(provider =>
+    new AppDataPersistenceProvider<string>(
+        provider.GetRequiredService<IFileSystemProvider>(),
+        provider.GetRequiredService<ISerializationProvider>(),
+        "MyApp"));
+
 // Use in your services
 services.AddTransient<IUserService, UserService>();
 ```
@@ -163,10 +176,10 @@ services.AddTransient<IUserService, UserService>();
 - **Thread Safety**: Yes (atomic file operations)
 
 ### AppDataPersistenceProvider<TKey>
-- **Storage**: Application data directory
-- **Persistence**: Yes (uses existing AppData infrastructure)
-- **Use Case**: User-specific application data
-- **Thread Safety**: Depends on underlying AppData implementation
+- **Storage**: Application data directory (%APPDATA%\ApplicationName on Windows)
+- **Persistence**: Yes (survives application restart)
+- **Use Case**: User-specific application data, settings, preferences
+- **Thread Safety**: Yes (atomic file operations)
 
 ### TempPersistenceProvider<TKey>
 - **Storage**: System temporary directory
@@ -212,9 +225,8 @@ catch (PersistenceProviderException ex)
 
 This library is designed to work with:
 
-- **SerializationProvider**: For object serialization/deserialization
-- **FileSystemProvider**: For file system operations with testing support
-- **AppData**: For application data management
+- **ktsu.SerializationProvider**: For object serialization/deserialization
+- **ktsu.FileSystemProvider**: For file system operations with testing support
 - **Any DI Container**: Microsoft.Extensions.DependencyInjection, Autofac, etc.
 
 ## Building

@@ -35,4 +35,4 @@ public sealed class PersistenceProviderException : Exception
 	public PersistenceProviderException(string message, Exception innerException) : base(message, innerException)
 	{
 	}
-} 
+}

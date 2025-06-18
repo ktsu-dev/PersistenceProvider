@@ -4,9 +4,8 @@
 
 namespace ktsu.PersistenceProvider;
 
-using System.IO.Abstractions;
 using ktsu.FileSystemProvider;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 /// <summary>
 /// A file system-based persistence provider that stores objects as files using serialization.
@@ -63,7 +62,7 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 			// Write to temporary file first, then move for atomic operation
 			string tempFilePath = filePath + ".tmp";
 			await _fileSystemProvider.Current.File.WriteAllTextAsync(tempFilePath, serializedData, cancellationToken).ConfigureAwait(false);
-			
+
 			// Atomic move
 			if (_fileSystemProvider.Current.File.Exists(filePath))
 			{
@@ -86,14 +85,14 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 		try
 		{
 			string filePath = GetFilePath(key);
-			
+
 			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
 				return default;
 			}
 
 			string serializedData = await _fileSystemProvider.Current.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
-			
+
 			if (string.IsNullOrEmpty(serializedData))
 			{
 				return default;
@@ -134,7 +133,7 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 		try
 		{
 			string filePath = GetFilePath(key);
-			
+
 			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
 				return Task.FromResult(false);
@@ -161,14 +160,13 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 				return Task.FromResult(Enumerable.Empty<TKey>());
 			}
 
-			var files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
-			var keys = files
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			List<TKey> keys = [.. files
 				.Select(f => _fileSystemProvider.Current.Path.GetFileNameWithoutExtension(f))
 				.Where(name => !string.IsNullOrEmpty(name))
-				.Select(name => ConvertToKey(name!))
+				.Select(name => PersistenceProviderUtilities.ConvertToKey<TKey>(name!))
 				.Where(key => key is not null)
-				.Cast<TKey>()
-				.ToList();
+				.Cast<TKey>()];
 
 			return Task.FromResult<IEnumerable<TKey>>(keys);
 		}
@@ -190,7 +188,7 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 				return Task.CompletedTask;
 			}
 
-			var files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
 			foreach (string file in files)
 			{
 				_fileSystemProvider.Current.File.Delete(file);
@@ -206,39 +204,7 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 
 	private string GetFilePath(TKey key)
 	{
-		string fileName = GetSafeFileName(key.ToString()!) + ".json";
+		string fileName = PersistenceProviderUtilities.GetSafeFileName(key.ToString()!) + ".json";
 		return _fileSystemProvider.Current.Path.Combine(_baseDirectory, fileName);
 	}
-
-	private static string GetSafeFileName(string input)
-	{
-		var invalidChars = Path.GetInvalidFileNameChars();
-		return string.Concat(input.Select(c => invalidChars.Contains(c) ? '_' : c));
-	}
-
-	private static TKey? ConvertToKey(string value)
-	{
-		try
-		{
-			if (typeof(TKey) == typeof(string))
-			{
-				return (TKey)(object)value;
-			}
-			if (typeof(TKey) == typeof(Guid))
-			{
-				return Guid.TryParse(value, out var guid) ? (TKey)(object)guid : default;
-			}
-			if (typeof(TKey) == typeof(int))
-			{
-				return int.TryParse(value, out var intValue) ? (TKey)(object)intValue : default;
-			}
-
-			// For other types, try using Convert.ChangeType
-			return (TKey)Convert.ChangeType(value, typeof(TKey));
-		}
-		catch
-		{
-			return default;
-		}
-	}
-} 
+}

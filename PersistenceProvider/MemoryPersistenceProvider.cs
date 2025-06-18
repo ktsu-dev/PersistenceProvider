@@ -5,7 +5,7 @@
 namespace ktsu.PersistenceProvider;
 
 using System.Collections.Concurrent;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 /// <summary>
 /// A memory-based persistence provider that stores objects in memory using serialization.
@@ -16,7 +16,7 @@ using SerializationProvider;
 /// Initializes a new instance of the <see cref="MemoryPersistenceProvider{TKey}"/> class.
 /// </remarks>
 /// <param name="serializationProvider">The serialization provider to use for object serialization.</param>
-public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider serializationProvider) : IPersistenceProvider<TKey> 
+public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider serializationProvider) : IPersistenceProvider<TKey>
 	where TKey : notnull
 {
 	private readonly ISerializationProvider _serializationProvider = serializationProvider ?? throw new ArgumentNullException(nameof(serializationProvider));
@@ -29,31 +29,31 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	public bool IsPersistent => false;
 
 	/// <inheritdoc/>
-	public Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
+	public async Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 
 		if (obj is null)
 		{
-			return RemoveAsync(key, cancellationToken).ContinueWith(_ => { }, TaskScheduler.Default);
+			await RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+			return;
 		}
 
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
 		{
-			string serializedData = _serializationProvider.Serialize(obj);
+			string serializedData = await _serializationProvider.SerializeAsync(obj, cancellationToken).ConfigureAwait(false);
 			_storage.AddOrUpdate(key, serializedData, (_, _) => serializedData);
-			return Task.CompletedTask;
 		}
 		catch (Exception ex)
 		{
-			return Task.FromException(new PersistenceProviderException($"Failed to store object with key '{key}'", ex));
+			throw new PersistenceProviderException($"Failed to store object with key '{key}'", ex);
 		}
 	}
 
 	/// <inheritdoc/>
-	public Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
+	public async Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		cancellationToken.ThrowIfCancellationRequested();
@@ -62,15 +62,15 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 		{
 			if (!_storage.TryGetValue(key, out string? serializedData) || serializedData is null)
 			{
-				return Task.FromResult<T?>(default);
+				return default;
 			}
 
-			T? obj = _serializationProvider.Deserialize<T>(serializedData);
-			return Task.FromResult<T?>(obj);
+			T? obj = await _serializationProvider.DeserializeAsync<T>(serializedData, cancellationToken).ConfigureAwait(false);
+			return obj;
 		}
 		catch (Exception ex)
 		{
-			return Task.FromException<T?>(new PersistenceProviderException($"Failed to retrieve object with key '{key}'", ex));
+			throw new PersistenceProviderException($"Failed to retrieve object with key '{key}'", ex);
 		}
 	}
 
@@ -106,7 +106,7 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	{
 		cancellationToken.ThrowIfCancellationRequested();
 
-		IEnumerable<TKey> keys = _storage.Keys.ToList(); // Create a snapshot to avoid concurrent modification issues
+		IEnumerable<TKey> keys = [.. _storage.Keys]; // Create a snapshot to avoid concurrent modification issues
 		return Task.FromResult(keys);
 	}
 
@@ -118,4 +118,4 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 		_storage.Clear();
 		return Task.CompletedTask;
 	}
-} 
+}

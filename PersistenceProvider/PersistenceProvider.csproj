@@ -1,38 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AssemblyName>ktsu.PersistenceProvider</AssemblyName>
-    <RootNamespace>ktsu.PersistenceProvider</RootNamespace>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>ktsu.PersistenceProvider</PackageId>
-    <Authors>ktsu</Authors>
-    <Company>ktsu.dev</Company>
-    <Product>PersistenceProvider</Product>
-    <Description>A generic persistence provider library that supports multiple storage backends including memory, file system, application data, and temporary storage. Integrates with SerializationProvider and FileSystemProvider libraries for dependency injection scenarios.</Description>
-    <Copyright>Copyright © ktsu.dev. All rights reserved.</Copyright>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ktsu-dev/PersistenceProvider</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ktsu-dev/PersistenceProvider</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageTags>persistence;storage;dependency-injection;serialization;filesystem;appdata;memory;temp</PackageTags>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsAsErrors />
-    <AnalysisLevel>latest</AnalysisLevel>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-  </PropertyGroup>
+<Project Sdk="ktsu.Sdk.Lib">
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Abstractions" Version="21.1.7" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\SerializationProvider\SerializationProvider\SerializationProvider.csproj" />
-    <ProjectReference Include="..\..\FileSystemProvider\FileSystemProvider\FileSystemProvider.csproj" />
-    <ProjectReference Include="..\..\AppData\AppData\AppData.csproj" />
+    <PackageReference Include="ktsu.FileSystemProvider" />
+    <PackageReference Include="ktsu.SerializationProvider" />
   </ItemGroup>
 
 </Project> 

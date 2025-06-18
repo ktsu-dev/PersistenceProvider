@@ -78,4 +78,4 @@ public interface IPersistenceProvider<TKey> where TKey : notnull
 	/// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
 	/// <returns>A task that represents the asynchronous clear operation.</returns>
 	public Task ClearAsync(CancellationToken cancellationToken = default);
-} 
+}

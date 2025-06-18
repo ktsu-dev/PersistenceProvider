@@ -4,47 +4,38 @@
 
 namespace ktsu.PersistenceProvider;
 
-using ktsu.AppData.Interfaces;
-using ktsu.Semantics;
+using ktsu.FileSystemProvider;
+using ktsu.SerializationProvider;
 
 /// <summary>
-/// Internal class to wrap objects for AppData storage.
-/// </summary>
-public sealed class PersistenceItem
-{
-	/// <summary>
-	/// Gets or sets the unique key that identifies the stored object.
-	/// </summary>
-	public string Key { get; set; } = string.Empty;
-	
-	/// <summary>
-	/// Gets or sets the assembly-qualified type name of the stored object.
-	/// </summary>
-	public string TypeName { get; set; } = string.Empty;
-	
-	/// <summary>
-	/// Gets or sets the actual data object being persisted.
-	/// </summary>
-	public object? Data { get; set; }
-}
-
-/// <summary>
-/// An AppData-based persistence provider that stores objects using the existing AppData infrastructure.
-/// Objects persist in the application's data directory.
+/// An AppData-based persistence provider that stores objects in the application's data directory.
+/// Objects persist in the application's data directory using standard file system operations.
 /// </summary>
 /// <typeparam name="TKey">The type used to identify stored objects.</typeparam>
-/// <remarks>
-/// Initializes a new instance of the <see cref="AppDataPersistenceProvider{TKey}"/> class.
-/// </remarks>
-/// <param name="repository">The AppData repository to use for storage operations.</param>
-/// <param name="subdirectory">Optional subdirectory within the AppData folder to store objects.</param>
-public sealed class AppDataPersistenceProvider<TKey>(
-	IAppDataRepository<PersistenceItem> repository,
-	RelativeDirectoryPath? subdirectory = null) : IPersistenceProvider<TKey>
+public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey>
 	where TKey : notnull
 {
-	private readonly IAppDataRepository<PersistenceItem> _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-	private readonly RelativeDirectoryPath? _subdirectory = subdirectory;
+	private readonly IFileSystemProvider _fileSystemProvider;
+	private readonly ISerializationProvider _serializationProvider;
+	private readonly string _baseDirectory;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="AppDataPersistenceProvider{TKey}"/> class.
+	/// </summary>
+	/// <param name="fileSystemProvider">The file system provider to use for file operations.</param>
+	/// <param name="serializationProvider">The serialization provider to use for object serialization.</param>
+	/// <param name="applicationName">The application name to use for the data directory.</param>
+	/// <param name="subdirectory">Optional subdirectory within the AppData folder to store objects.</param>
+	public AppDataPersistenceProvider(
+		IFileSystemProvider fileSystemProvider,
+		ISerializationProvider serializationProvider,
+		string applicationName,
+		string? subdirectory = null)
+	{
+		_fileSystemProvider = fileSystemProvider ?? throw new ArgumentNullException(nameof(fileSystemProvider));
+		_serializationProvider = serializationProvider ?? throw new ArgumentNullException(nameof(serializationProvider));
+		_baseDirectory = GetAppDataDirectory(applicationName, subdirectory);
+	}
 
 	/// <inheritdoc/>
 	public string ProviderName => "AppData";
@@ -53,7 +44,7 @@ public sealed class AppDataPersistenceProvider<TKey>(
 	public bool IsPersistent => true;
 
 	/// <inheritdoc/>
-	public Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
+	public async Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		cancellationToken.ThrowIfCancellationRequested();
@@ -62,19 +53,30 @@ public sealed class AppDataPersistenceProvider<TKey>(
 		{
 			if (obj is null)
 			{
-				return RemoveAsync(key, cancellationToken);
+				await RemoveAsync(key, cancellationToken).ConfigureAwait(false);
+				return;
 			}
 
-			var item = new PersistenceItem
-			{
-				Key = key.ToString()!,
-				TypeName = typeof(T).AssemblyQualifiedName!,
-				Data = obj
-			};
+			string filePath = GetFilePath(key);
+			string serializedData = await _serializationProvider.SerializeAsync(obj, cancellationToken).ConfigureAwait(false);
 
-			FileName fileName = GetFileName(key);
-			_repository.Save(item, _subdirectory, fileName);
-			return Task.CompletedTask;
+			// Ensure directory exists
+			string? directory = _fileSystemProvider.Current.Path.GetDirectoryName(filePath);
+			if (!string.IsNullOrEmpty(directory))
+			{
+				_fileSystemProvider.Current.Directory.CreateDirectory(directory);
+			}
+
+			// Write to temporary file first, then move for atomic operation
+			string tempFilePath = filePath + ".tmp";
+			await _fileSystemProvider.Current.File.WriteAllTextAsync(tempFilePath, serializedData, cancellationToken).ConfigureAwait(false);
+
+			// Atomic move
+			if (_fileSystemProvider.Current.File.Exists(filePath))
+			{
+				_fileSystemProvider.Current.File.Delete(filePath);
+			}
+			_fileSystemProvider.Current.File.Move(tempFilePath, filePath);
 		}
 		catch (Exception ex)
 		{
@@ -83,29 +85,28 @@ public sealed class AppDataPersistenceProvider<TKey>(
 	}
 
 	/// <inheritdoc/>
-	public Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
+	public async Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
 		{
-			FileName fileName = GetFileName(key);
-			string content = _repository.ReadText(_subdirectory, fileName);
-			
-			if (string.IsNullOrEmpty(content))
+			string filePath = GetFilePath(key);
+
+			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
-				return Task.FromResult<T?>(default);
+				return default;
 			}
 
-			var item = _repository.LoadOrCreate(_subdirectory, fileName);
-			
-			if (item.Data is T typedData)
+			string serializedData = await _fileSystemProvider.Current.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
+
+			if (string.IsNullOrEmpty(serializedData))
 			{
-				return Task.FromResult<T?>(typedData);
+				return default;
 			}
 
-			return Task.FromResult<T?>(default);
+			return await _serializationProvider.DeserializeAsync<T>(serializedData, cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -128,13 +129,13 @@ public sealed class AppDataPersistenceProvider<TKey>(
 
 		try
 		{
-			FileName fileName = GetFileName(key);
-			string content = _repository.ReadText(_subdirectory, fileName);
-			return Task.FromResult(!string.IsNullOrEmpty(content));
+			string filePath = GetFilePath(key);
+			bool exists = _fileSystemProvider.Current.File.Exists(filePath);
+			return Task.FromResult(exists);
 		}
-		catch
+		catch (Exception ex)
 		{
-			return Task.FromResult(false);
+			throw new PersistenceProviderException($"Failed to check existence of object with key '{key}' in AppData", ex);
 		}
 	}
 
@@ -146,17 +147,14 @@ public sealed class AppDataPersistenceProvider<TKey>(
 
 		try
 		{
-			FileName fileName = GetFileName(key);
-			
-			// Check if file exists first
-			string content = _repository.ReadText(_subdirectory, fileName);
-			if (string.IsNullOrEmpty(content))
+			string filePath = GetFilePath(key);
+
+			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
 				return Task.FromResult(false);
 			}
 
-			// Remove by writing empty content
-			_repository.WriteText(string.Empty, _subdirectory, fileName);
+			_fileSystemProvider.Current.File.Delete(filePath);
 			return Task.FromResult(true);
 		}
 		catch (Exception ex)
@@ -172,12 +170,20 @@ public sealed class AppDataPersistenceProvider<TKey>(
 
 		try
 		{
-			// This is a limitation of the current AppData infrastructure - 
-			// it doesn't provide a way to enumerate all files in a directory.
-			// For now, we return an empty collection.
-			// In a real implementation, you might need to extend the AppData interfaces
-			// to support directory enumeration.
-			return Task.FromResult(Enumerable.Empty<TKey>());
+			if (!_fileSystemProvider.Current.Directory.Exists(_baseDirectory))
+			{
+				return Task.FromResult(Enumerable.Empty<TKey>());
+			}
+
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			List<TKey> keys = [.. files
+				.Select(f => _fileSystemProvider.Current.Path.GetFileNameWithoutExtension(f))
+				.Where(name => !string.IsNullOrEmpty(name))
+				.Select(name => PersistenceProviderUtilities.ConvertToKey<TKey>(name!))
+				.Where(key => key is not null)
+				.Cast<TKey>()];
+
+			return Task.FromResult<IEnumerable<TKey>>(keys);
 		}
 		catch (Exception ex)
 		{
@@ -192,11 +198,17 @@ public sealed class AppDataPersistenceProvider<TKey>(
 
 		try
 		{
-			// This is a limitation of the current AppData infrastructure - 
-			// it doesn't provide a way to clear all files in a directory.
-			// For now, this is a no-op.
-			// In a real implementation, you might need to extend the AppData interfaces
-			// to support directory clearing.
+			if (!_fileSystemProvider.Current.Directory.Exists(_baseDirectory))
+			{
+				return Task.CompletedTask;
+			}
+
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_baseDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			foreach (string file in files)
+			{
+				_fileSystemProvider.Current.File.Delete(file);
+			}
+
 			return Task.CompletedTask;
 		}
 		catch (Exception ex)
@@ -205,16 +217,28 @@ public sealed class AppDataPersistenceProvider<TKey>(
 		}
 	}
 
-	private FileName GetFileName(TKey key)
+	private string GetFilePath(TKey key)
 	{
-		string keyString = key.ToString()!;
-		string safeFileName = GetSafeFileName(keyString);
-		return (safeFileName + ".json").As<FileName>();
+		string fileName = PersistenceProviderUtilities.GetSafeFileName(key.ToString()!) + ".json";
+		return _fileSystemProvider.Current.Path.Combine(_baseDirectory, fileName);
 	}
 
-	private static string GetSafeFileName(string input)
+	private string GetAppDataDirectory(string applicationName, string? subdirectory)
 	{
-		var invalidChars = Path.GetInvalidFileNameChars();
-		return string.Concat(input.Select(c => invalidChars.Contains(c) ? '_' : c));
+		if (string.IsNullOrWhiteSpace(applicationName))
+		{
+			throw new ArgumentException("Application name cannot be null or whitespace.", nameof(applicationName));
+		}
+
+		// Environment.GetFolderPath is a system API, not file I/O, so it's acceptable to use directly
+		string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+		string basePath = _fileSystemProvider.Current.Path.Combine(appDataPath, applicationName);
+
+		if (!string.IsNullOrWhiteSpace(subdirectory))
+		{
+			basePath = _fileSystemProvider.Current.Path.Combine(basePath, subdirectory);
+		}
+
+		return basePath;
 	}
-} 
+}

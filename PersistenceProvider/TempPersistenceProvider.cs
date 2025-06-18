@@ -4,9 +4,8 @@
 
 namespace ktsu.PersistenceProvider;
 
-using System.IO.Abstractions;
 using ktsu.FileSystemProvider;
-using SerializationProvider;
+using ktsu.SerializationProvider;
 
 /// <summary>
 /// A temporary directory-based persistence provider that stores objects in the system temporary directory.
@@ -22,7 +21,7 @@ using SerializationProvider;
 public sealed class TempPersistenceProvider<TKey>(
 	IFileSystemProvider fileSystemProvider,
 	ISerializationProvider serializationProvider,
-	string? applicationName = null) : IPersistenceProvider<TKey>
+	string? applicationName = null) : IPersistenceProvider<TKey>, IDisposable
 	where TKey : notnull
 {
 	private readonly IFileSystemProvider _fileSystemProvider = fileSystemProvider ?? throw new ArgumentNullException(nameof(fileSystemProvider));
@@ -63,7 +62,7 @@ public sealed class TempPersistenceProvider<TKey>(
 			// Write to temporary file first, then move for atomic operation
 			string tempFilePath = filePath + ".tmp";
 			await _fileSystemProvider.Current.File.WriteAllTextAsync(tempFilePath, serializedData, cancellationToken).ConfigureAwait(false);
-			
+
 			// Atomic move
 			if (_fileSystemProvider.Current.File.Exists(filePath))
 			{
@@ -86,14 +85,14 @@ public sealed class TempPersistenceProvider<TKey>(
 		try
 		{
 			string filePath = GetFilePath(key);
-			
+
 			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
 				return default;
 			}
 
 			string serializedData = await _fileSystemProvider.Current.File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
-			
+
 			if (string.IsNullOrEmpty(serializedData))
 			{
 				return default;
@@ -134,7 +133,7 @@ public sealed class TempPersistenceProvider<TKey>(
 		try
 		{
 			string filePath = GetFilePath(key);
-			
+
 			if (!_fileSystemProvider.Current.File.Exists(filePath))
 			{
 				return Task.FromResult(false);
@@ -161,14 +160,13 @@ public sealed class TempPersistenceProvider<TKey>(
 				return Task.FromResult(Enumerable.Empty<TKey>());
 			}
 
-			var files = _fileSystemProvider.Current.Directory.GetFiles(_tempDirectory, "*.json", SearchOption.TopDirectoryOnly);
-			var keys = files
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_tempDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			List<TKey> keys = [.. files
 				.Select(f => _fileSystemProvider.Current.Path.GetFileNameWithoutExtension(f))
 				.Where(name => !string.IsNullOrEmpty(name))
-				.Select(name => ConvertToKey(name!))
+				.Select(name => PersistenceProviderUtilities.ConvertToKey<TKey>(name!))
 				.Where(key => key is not null)
-				.Cast<TKey>()
-				.ToList();
+				.Cast<TKey>()];
 
 			return Task.FromResult<IEnumerable<TKey>>(keys);
 		}
@@ -190,7 +188,7 @@ public sealed class TempPersistenceProvider<TKey>(
 				return Task.CompletedTask;
 			}
 
-			var files = _fileSystemProvider.Current.Directory.GetFiles(_tempDirectory, "*.json", SearchOption.TopDirectoryOnly);
+			string[] files = _fileSystemProvider.Current.Directory.GetFiles(_tempDirectory, "*.json", SearchOption.TopDirectoryOnly);
 			foreach (string file in files)
 			{
 				_fileSystemProvider.Current.File.Delete(file);
@@ -205,63 +203,36 @@ public sealed class TempPersistenceProvider<TKey>(
 	}
 
 	/// <summary>
-	/// Releases resources and optionally cleans up the temporary directory.
+	/// Releases resources. Does not automatically clean up the temporary directory.
+	/// Use <see cref="CleanupDirectory"/> to explicitly remove the temporary directory if needed.
 	/// </summary>
-	/// <param name="cleanupDirectory">Whether to remove the temporary directory and all its contents.</param>
-	public void Dispose(bool cleanupDirectory = false)
+	public void Dispose() => GC.SuppressFinalize(this);
+
+	/// <summary>
+	/// Explicitly cleans up the temporary directory and all its contents.
+	/// This is separate from Dispose() to give consumers control over directory cleanup.
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Intentionally ignoring cleanup errors")]
+	public void CleanupDirectory()
 	{
-		if (cleanupDirectory)
+		try
 		{
-			try
+			if (_fileSystemProvider.Current.Directory.Exists(_tempDirectory))
 			{
-				if (_fileSystemProvider.Current.Directory.Exists(_tempDirectory))
-				{
-					_fileSystemProvider.Current.Directory.Delete(_tempDirectory, recursive: true);
-				}
+				_fileSystemProvider.Current.Directory.Delete(_tempDirectory, recursive: true);
 			}
-			catch
-			{
-				// Ignore cleanup errors
-			}
+		}
+		catch (Exception)
+		{
+			// Ignore cleanup errors - temp directories may be cleaned up by the system
+			// Intentionally catching all exceptions during cleanup
 		}
 	}
 
 	private string GetFilePath(TKey key)
 	{
-		string fileName = GetSafeFileName(key.ToString()!) + ".json";
+		string fileName = PersistenceProviderUtilities.GetSafeFileName(key.ToString()!) + ".json";
 		return _fileSystemProvider.Current.Path.Combine(_tempDirectory, fileName);
-	}
-
-	private static string GetSafeFileName(string input)
-	{
-		var invalidChars = Path.GetInvalidFileNameChars();
-		return string.Concat(input.Select(c => invalidChars.Contains(c) ? '_' : c));
-	}
-
-	private static TKey? ConvertToKey(string value)
-	{
-		try
-		{
-			if (typeof(TKey) == typeof(string))
-			{
-				return (TKey)(object)value;
-			}
-			if (typeof(TKey) == typeof(Guid))
-			{
-				return Guid.TryParse(value, out var guid) ? (TKey)(object)guid : default;
-			}
-			if (typeof(TKey) == typeof(int))
-			{
-				return int.TryParse(value, out var intValue) ? (TKey)(object)intValue : default;
-			}
-
-			// For other types, try using Convert.ChangeType
-			return (TKey)Convert.ChangeType(value, typeof(TKey));
-		}
-		catch
-		{
-			return default;
-		}
 	}
 
 	private static string CreateTempDirectory(IFileSystemProvider fileSystemProvider, string? applicationName)
@@ -269,8 +240,8 @@ public sealed class TempPersistenceProvider<TKey>(
 		string tempPath = fileSystemProvider.Current.Path.GetTempPath();
 		string directoryName = applicationName ?? "PersistenceProvider";
 		string tempDirectory = fileSystemProvider.Current.Path.Combine(tempPath, directoryName, Guid.NewGuid().ToString("N")[..8]);
-		
+
 		fileSystemProvider.Current.Directory.CreateDirectory(tempDirectory);
 		return tempDirectory;
 	}
-} 
+}
