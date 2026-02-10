@@ -1,8 +1,17 @@
-<Project Sdk="ktsu.Sdk.Lib">
+<Project>
+  <Sdk Name="Microsoft.NET.Sdk" />
+  <Sdk Name="ktsu.Sdk" />
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net9.0</TargetFrameworks>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="ktsu.FileSystemProvider" />
     <PackageReference Include="ktsu.SerializationProvider" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" />
+    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" />
+    <PackageReference Include="Polyfill" />
   </ItemGroup>
 
-</Project> 
+</Project>

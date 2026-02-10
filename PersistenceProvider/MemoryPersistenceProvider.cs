@@ -19,7 +19,7 @@ using ktsu.SerializationProvider;
 public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider serializationProvider) : IPersistenceProvider<TKey>
 	where TKey : notnull
 {
-	private readonly ISerializationProvider _serializationProvider = serializationProvider ?? throw new ArgumentNullException(nameof(serializationProvider));
+	private readonly ISerializationProvider _serializationProvider = Ensure.NotNull(serializationProvider);
 	private readonly ConcurrentDictionary<TKey, string> _storage = new();
 
 	/// <inheritdoc/>
@@ -31,7 +31,9 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	/// <inheritdoc/>
 	public async Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 
 		if (obj is null)
 		{
@@ -55,7 +57,9 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	/// <inheritdoc/>
 	public async Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
@@ -84,7 +88,9 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	/// <inheritdoc/>
 	public Task<bool> ExistsAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		bool exists = _storage.ContainsKey(key);
@@ -94,7 +100,9 @@ public sealed class MemoryPersistenceProvider<TKey>(ISerializationProvider seria
 	/// <inheritdoc/>
 	public Task<bool> RemoveAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		bool removed = _storage.TryRemove(key, out _);

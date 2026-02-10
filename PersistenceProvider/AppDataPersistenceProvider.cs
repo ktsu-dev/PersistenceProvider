@@ -2,6 +2,8 @@
 // All rights reserved.
 // Licensed under the MIT license.
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ktsu.PersistenceProvider.Test")]
+
 namespace ktsu.PersistenceProvider;
 
 using ktsu.FileSystemProvider;
@@ -32,8 +34,8 @@ public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey
 		string applicationName,
 		string? subdirectory = null)
 	{
-		_fileSystemProvider = fileSystemProvider ?? throw new ArgumentNullException(nameof(fileSystemProvider));
-		_serializationProvider = serializationProvider ?? throw new ArgumentNullException(nameof(serializationProvider));
+		_fileSystemProvider = Ensure.NotNull(fileSystemProvider);
+		_serializationProvider = Ensure.NotNull(serializationProvider);
 		_baseDirectory = GetAppDataDirectory(applicationName, subdirectory);
 	}
 
@@ -46,7 +48,9 @@ public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey
 	/// <inheritdoc/>
 	public async Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
@@ -87,7 +91,9 @@ public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey
 	/// <inheritdoc/>
 	public async Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
@@ -124,7 +130,9 @@ public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey
 	/// <inheritdoc/>
 	public Task<bool> ExistsAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
@@ -142,7 +150,9 @@ public sealed class AppDataPersistenceProvider<TKey> : IPersistenceProvider<TKey
 	/// <inheritdoc/>
 	public Task<bool> RemoveAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try

@@ -24,9 +24,9 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 	string baseDirectory) : IPersistenceProvider<TKey>
 	where TKey : notnull
 {
-	private readonly IFileSystemProvider _fileSystemProvider = fileSystemProvider ?? throw new ArgumentNullException(nameof(fileSystemProvider));
-	private readonly ISerializationProvider _serializationProvider = serializationProvider ?? throw new ArgumentNullException(nameof(serializationProvider));
-	private readonly string _baseDirectory = baseDirectory ?? throw new ArgumentNullException(nameof(baseDirectory));
+	private readonly IFileSystemProvider _fileSystemProvider = Ensure.NotNull(fileSystemProvider);
+	private readonly ISerializationProvider _serializationProvider = Ensure.NotNull(serializationProvider);
+	private readonly string _baseDirectory = Ensure.NotNull(baseDirectory);
 
 	/// <inheritdoc/>
 	public string ProviderName => "FileSystem";
@@ -37,7 +37,9 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 	/// <inheritdoc/>
 	public async Task StoreAsync<T>(TKey key, T obj, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 
 		if (obj is null)
 		{
@@ -79,7 +81,9 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 	/// <inheritdoc/>
 	public async Task<T?> RetrieveAsync<T>(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
@@ -116,7 +120,9 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 	/// <inheritdoc/>
 	public Task<bool> ExistsAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		string filePath = GetFilePath(key);
@@ -127,7 +133,9 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 	/// <inheritdoc/>
 	public Task<bool> RemoveAsync(TKey key, CancellationToken cancellationToken = default)
 	{
+#pragma warning disable KTSU0003 // Ensure.NotNull requires class constraint, but TKey is notnull
 		ArgumentNullException.ThrowIfNull(key);
+#pragma warning restore KTSU0003
 		cancellationToken.ThrowIfCancellationRequested();
 
 		try
