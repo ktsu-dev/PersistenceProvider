@@ -3,6 +3,9 @@
 Changes since v1.0.5:
 
 - Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
 - Sync .github\dependabot.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
 - Sync .gitignore ([@ktsu[bot]](https://github.com/ktsu[bot]))
 - Sync .gitattributes ([@ktsu[bot]](https://github.com/ktsu[bot]))
