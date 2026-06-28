@@ -9,9 +9,8 @@
   <ItemGroup>
     <PackageReference Include="ktsu.FileSystemProvider" />
     <PackageReference Include="ktsu.SerializationProvider" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" />
-    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" />
     <PackageReference Include="Polyfill" />
-  </ItemGroup>
+  
+    <PackageReference Include="Testably.Abstractions.FileSystem.Interface" /></ItemGroup>
 
 </Project>
