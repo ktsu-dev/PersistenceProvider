@@ -1,8 +1,8 @@
-## v1.0.6 (patch)
+## v1.0.7 (patch)
 
-Changes since v1.0.5:
+Changes since v1.0.6:
 
-- style: simplify key conversion selector lambdas ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: remove unused SourceLink package versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: migrate persistence provider to Testably file system ([@matt-edmondson](https://github.com/matt-edmondson))
+- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
 
