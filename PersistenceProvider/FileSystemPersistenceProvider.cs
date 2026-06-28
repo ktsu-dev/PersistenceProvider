@@ -172,7 +172,7 @@ public sealed class FileSystemPersistenceProvider<TKey>(
 			List<TKey> keys = [.. files
 				.Select(f => _fileSystemProvider.Current.Path.GetFileNameWithoutExtension(f))
 				.Where(name => !string.IsNullOrEmpty(name))
-				.Select(name => PersistenceProviderUtilities.ConvertToKey<TKey>(name))
+				.Select(PersistenceProviderUtilities.ConvertToKey<TKey>)
 				.Where(key => key is not null)
 				.Cast<TKey>()];
 
