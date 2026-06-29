@@ -3,8 +3,8 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="ktsu.FileSystemProvider" Version="1.0.2" />
-    <PackageVersion Include="ktsu.SerializationProvider" Version="1.0.7" />
+    <PackageVersion Include="ktsu.FileSystemProvider" Version="1.0.4" />
+    <PackageVersion Include="ktsu.SerializationProvider" Version="1.0.9" />
     <PackageVersion Include="Polyfill" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="17.14.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="1.7.2" />
